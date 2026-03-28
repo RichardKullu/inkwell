@@ -76,7 +76,10 @@ export default function EditorToolbar({ editor }: EditorToolbarProps) {
       {buttons.map((btn) => (
         <button
           key={btn.label}
-          onClick={btn.action}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            btn.action();
+          }}
           className={`px-2.5 py-1 text-sm rounded-md transition ${
             btn.isActive()
               ? "bg-indigo-100 text-indigo-700"
