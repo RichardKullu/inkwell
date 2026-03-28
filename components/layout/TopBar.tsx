@@ -4,16 +4,14 @@ import { createClient } from "@/lib/supabase/client";
 import { useWorkspaceStore } from "@/lib/store";
 import PresenceAvatars from "./PresenceAvatars";
 import { useState, useEffect, useRef } from "react";
-import type { User } from "@/types";
 
 interface TopBarProps {
   docId: string;
   title: string;
-  connectedUsers?: User[];
   onShareClick?: () => void;
 }
 
-export default function TopBar({ docId, title: initialTitle, connectedUsers = [], onShareClick }: TopBarProps) {
+export default function TopBar({ docId, title: initialTitle, onShareClick }: TopBarProps) {
   const supabase = createClient();
   const { updateDocument, toggleSidebar } = useWorkspaceStore();
   const [title, setTitle] = useState(initialTitle);
@@ -58,7 +56,7 @@ export default function TopBar({ docId, title: initialTitle, connectedUsers = []
         </span>
       </div>
       <div className="flex items-center gap-3">
-        <PresenceAvatars users={connectedUsers} />
+        <PresenceAvatars />
         <button
           onClick={onShareClick}
           className="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 transition"

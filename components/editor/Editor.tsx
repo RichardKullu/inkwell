@@ -13,6 +13,7 @@ import { AIAutocompleteExtension } from "@/extensions/ai-autocomplete";
 import SlashCommand from "@/components/editor/SlashCommand";
 import AIAutocomplete from "@/components/editor/AIAutocomplete";
 import AIFloatingToolbar from "@/components/editor/AIFloatingToolbar";
+import RemoteCursors from "@/components/editor/RemoteCursors";
 import EditorToolbar from "./EditorToolbar";
 import { useEffect, useRef, useCallback } from "react";
 
@@ -29,6 +30,7 @@ export default function Editor({ editable = true, docId, initialContent }: Edito
   const supabase = createClient();
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const isRemoteUpdate = useRef(false);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -132,8 +134,9 @@ export default function Editor({ editable = true, docId, initialContent }: Edito
   return (
     <div className="flex flex-col h-full">
       <EditorToolbar editor={editor} />
-      <div className="flex-1 overflow-y-auto px-16 py-10 relative">
+      <div ref={editorContainerRef} className="flex-1 overflow-y-auto px-16 py-10 relative">
         <EditorContent editor={editor} />
+        <RemoteCursors editor={editor} containerRef={editorContainerRef} />
         <SlashCommand editor={editor} />
         <AIAutocomplete editor={editor} />
         <AIFloatingToolbar editor={editor} />

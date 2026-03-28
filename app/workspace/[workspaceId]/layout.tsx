@@ -22,6 +22,12 @@ export default async function WorkspaceLayout({
 
   if (!workspace) redirect("/workspace");
 
+  const { data: profile } = await supabase
+    .from("users")
+    .select("display_name, email")
+    .eq("id", user.id)
+    .single();
+
   const { data: folders } = await supabase
     .from("folders")
     .select("*")
@@ -40,6 +46,8 @@ export default async function WorkspaceLayout({
         workspace={workspace}
         folders={folders ?? []}
         documents={documents ?? []}
+        userName={profile?.display_name ?? user.email?.split("@")[0] ?? "User"}
+        userEmail={profile?.email ?? user.email ?? ""}
       />
       <main className="flex-1 flex flex-col overflow-hidden">
         {children}

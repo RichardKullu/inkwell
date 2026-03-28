@@ -6,12 +6,26 @@ import TopBar from "@/components/layout/TopBar";
 import ShareDialog from "@/components/workspace/ShareDialog";
 import { useState } from "react";
 
-const USER_COLORS = ["#6c63ff", "#ff6b6b", "#51cf66", "#fcc419", "#339af0", "#f06595"];
+const USER_COLORS = [
+  "#6c63ff", // indigo
+  "#ff6b6b", // red
+  "#51cf66", // green
+  "#fcc419", // yellow
+  "#339af0", // blue
+  "#f06595", // pink
+  "#20c997", // teal
+  "#ff922b", // orange
+  "#845ef7", // violet
+  "#e64980", // magenta
+  "#22b8cf", // cyan
+  "#e8590c", // deep orange
+];
 
 function getColorForUser(name: string): string {
-  let hash = 0;
+  // Better hash using djb2 algorithm
+  let hash = 5381;
   for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    hash = ((hash << 5) + hash + name.charCodeAt(i)) & 0xffffffff;
   }
   return USER_COLORS[Math.abs(hash) % USER_COLORS.length];
 }
