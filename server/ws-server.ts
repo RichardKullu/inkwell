@@ -31,6 +31,9 @@ interface DocRoom {
 
 const rooms = new Map<string, DocRoom>();
 
+// Use a separate text column instead of bytea to avoid encoding issues
+// We store the Yjs state as a JSON array of numbers (lossless binary representation)
+
 // Load doc state from Supabase
 async function loadDoc(docId: string, doc: Y.Doc): Promise<void> {
   try {
@@ -40,11 +43,50 @@ async function loadDoc(docId: string, doc: Y.Doc): Promise<void> {
       .eq("id", docId)
       .single();
 
-    if (data?.yjs_state && !error) {
-      // yjs_state is stored as base64 in Supabase bytea
-      const buffer = Buffer.from(data.yjs_state, "base64");
-      Y.applyUpdate(doc, new Uint8Array(buffer));
-      console.log(`[persistence] Loaded doc ${docId} (${buffer.length} bytes)`);
+    if (error) {
+      console.error(`[persistence] Load error for ${docId}:`, error.message);
+      return;
+    }
+
+    if (data?.yjs_state) {
+      try {
+        const raw = data.yjs_state;
+        let buffer: Uint8Array;
+
+        if (typeof raw === "string") {
+          // Try parsing as JSON array first (our new format)
+          try {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) {
+              buffer = new Uint8Array(arr);
+            } else {
+              console.log(`[persistence] Unknown format for doc ${docId}, skipping`);
+              return;
+            }
+          } catch {
+            // Not JSON — try hex format (\\x prefix from bytea)
+            if (raw.startsWith("\\x")) {
+              buffer = new Uint8Array(Buffer.from(raw.slice(2), "hex"));
+            } else {
+              // Try base64
+              buffer = new Uint8Array(Buffer.from(raw, "base64"));
+            }
+          }
+        } else {
+          buffer = new Uint8Array(raw);
+        }
+
+        if (buffer.length > 2) {
+          Y.applyUpdate(doc, buffer);
+          console.log(`[persistence] Loaded doc ${docId} (${buffer.length} bytes)`);
+        } else {
+          console.log(`[persistence] Doc ${docId} has empty state, skipping`);
+        }
+      } catch (parseErr) {
+        console.error(`[persistence] Parse error for doc ${docId}:`, parseErr);
+      }
+    } else {
+      console.log(`[persistence] No saved state for doc ${docId}`);
     }
   } catch (err) {
     console.error(`[persistence] Failed to load doc ${docId}:`, err);
@@ -56,16 +98,24 @@ async function saveDoc(docId: string, doc: Y.Doc): Promise<void> {
   try {
     const state = Y.encodeStateAsUpdate(doc);
 
+    if (state.length <= 2) {
+      console.log(`[persistence] Doc ${docId} is empty, skipping save`);
+      return;
+    }
+
+    // Store as JSON array of numbers — lossless, no encoding issues
+    const jsonArray = JSON.stringify(Array.from(state));
+
     const { error } = await supabase
       .from("documents")
       .update({
-        yjs_state: `\\x${Buffer.from(state).toString("hex")}`,
+        yjs_state: jsonArray,
         updated_at: new Date().toISOString(),
       })
       .eq("id", docId);
 
     if (error) {
-      console.error(`[persistence] Failed to save doc ${docId}:`, error);
+      console.error(`[persistence] Failed to save doc ${docId}:`, error.message);
     } else {
       console.log(`[persistence] Saved doc ${docId} (${state.length} bytes)`);
     }
