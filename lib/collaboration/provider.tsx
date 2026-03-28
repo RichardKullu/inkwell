@@ -43,9 +43,11 @@ export function CollaborationProvider({ docId, userName, userColor, children }: 
     supabase.auth.getSession().then(({ data: { session } }) => {
       const token = session?.access_token || "";
 
-      // y-websocket WebsocketProvider expects (serverUrl, roomName, ydoc)
-      // We pass the auth token via the URL params
-      const provider = new WebsocketProvider(wsUrl, `${docId}?token=${token}`, ydoc);
+      // Room name is just the docId — used for persistence lookup
+      // Token passed via params option — appended as query string by y-websocket
+      const provider = new WebsocketProvider(wsUrl, docId, ydoc, {
+        params: { token },
+      });
 
       provider.awareness.setLocalStateField("user", {
         name: userName,

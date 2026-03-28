@@ -231,7 +231,11 @@ wss.on("connection", async (ws, req) => {
   }
 
   const url = new URL(req.url || "/", `http://${req.headers.host}`);
-  const roomName = url.pathname.slice(1) || "default";
+  // Extract just the doc ID — strip any query params from the path
+  // y-websocket sends room name as the URL path, which may include ?token=...
+  const rawPath = url.pathname.slice(1);
+  const roomName = rawPath.split("?")[0] || "default";
+  console.log(`[ws] Connection from user ${userId}, room: ${roomName}, raw path: ${rawPath}`);
 
   // Verify user has access to this document's workspace
   const { data: doc } = await supabase
