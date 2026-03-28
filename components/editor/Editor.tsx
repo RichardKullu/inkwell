@@ -8,21 +8,28 @@ import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import Collaboration from "@tiptap/extension-collaboration";
 import { common, createLowlight } from "lowlight";
 import { useCollaboration } from "@/lib/collaboration/provider";
+import { createClient } from "@/lib/supabase/client";
 import { SlashCommandExtension } from "@/extensions/slash-command";
 import { AIAutocompleteExtension } from "@/extensions/ai-autocomplete";
 import SlashCommand from "@/components/editor/SlashCommand";
 import AIAutocomplete from "@/components/editor/AIAutocomplete";
 import AIFloatingToolbar from "@/components/editor/AIFloatingToolbar";
 import EditorToolbar from "./EditorToolbar";
+import { useEffect, useRef, useCallback } from "react";
 
 const lowlight = createLowlight(common);
 
 interface EditorProps {
   editable?: boolean;
+  docId: string;
+  initialContent?: string;
 }
 
-export default function Editor({ editable = true }: EditorProps) {
+export default function Editor({ editable = true, docId, initialContent }: EditorProps) {
   const { ydoc, provider } = useCollaboration();
+  const supabase = createClient();
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const hasLoadedRef = useRef(false);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -55,6 +62,51 @@ export default function Editor({ editable = true }: EditorProps) {
       },
     },
   }, [provider]);
+
+  // Load initial content from Supabase if editor is empty after mount
+  useEffect(() => {
+    if (!editor || hasLoadedRef.current) return;
+
+    const timeout = setTimeout(() => {
+      if (editor.isEmpty && initialContent) {
+        editor.commands.setContent(initialContent);
+        hasLoadedRef.current = true;
+      } else {
+        hasLoadedRef.current = true;
+      }
+    }, 1500); // Wait for Yjs sync to potentially load content first
+
+    return () => clearTimeout(timeout);
+  }, [editor, initialContent]);
+
+  // Auto-save HTML content to Supabase
+  const saveContent = useCallback(async () => {
+    if (!editor) return;
+    const html = editor.getHTML();
+    if (html === "<p></p>" || !html) return;
+
+    await supabase
+      .from("documents")
+      .update({ content: html, updated_at: new Date().toISOString() })
+      .eq("id", docId);
+  }, [editor, docId, supabase]);
+
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleUpdate = () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(saveContent, 3000);
+    };
+
+    editor.on("update", handleUpdate);
+    return () => {
+      editor.off("update", handleUpdate);
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      // Save on unmount
+      saveContent();
+    };
+  }, [editor, saveContent]);
 
   if (!editor) return null;
 

@@ -22,9 +22,10 @@ interface DocumentEditorProps {
   workspaceId: string;
   userName: string;
   canEdit: boolean;
+  initialContent?: string;
 }
 
-export default function DocumentEditor({ docId, docTitle, workspaceId, userName, canEdit }: DocumentEditorProps) {
+export default function DocumentEditor({ docId, docTitle, workspaceId, userName, canEdit, initialContent }: DocumentEditorProps) {
   const [shareOpen, setShareOpen] = useState(false);
 
   return (
@@ -38,7 +39,7 @@ export default function DocumentEditor({ docId, docTitle, workspaceId, userName,
         title={docTitle}
         onShareClick={() => setShareOpen(true)}
       />
-      <Editor editable={canEdit} />
+      <Editor editable={canEdit} docId={docId} initialContent={initialContent} />
       <ShareDialog
         workspaceId={workspaceId}
         open={shareOpen}

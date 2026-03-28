@@ -15,7 +15,7 @@ export default async function DocPage({
 
   const { data: doc, error: docError } = await supabase
     .from("documents")
-    .select("id, folder_id, workspace_id, title, created_by, updated_at, created_at")
+    .select("id, folder_id, workspace_id, title, content, created_by, updated_at, created_at")
     .eq("id", docId)
     .eq("workspace_id", workspaceId)
     .single();
@@ -52,6 +52,7 @@ export default async function DocPage({
       workspaceId={workspaceId}
       userName={profile?.display_name ?? "Anonymous"}
       canEdit={canEdit}
+      initialContent={doc.content ?? ""}
     />
   );
 }
