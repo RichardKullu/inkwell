@@ -17,26 +17,3 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
-      - key: NEXT_PUBLIC_YJS_WS_URL
-        sync: false
-
-  # y-websocket collaboration server
-  - type: web
-    name: inkwell-ws
-    runtime: node
-    plan: free
-    buildCommand: pnpm install && pnpm run build:ws
-    startCommand: pnpm run start:ws
-    envVars:
-      - key: NODE_VERSION
-        value: 20
-      - key: YJS_WS_PORT
-        value: 10000
-      - key: NEXT_PUBLIC_SUPABASE_URL
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      - key: ALLOWED_ORIGINS
-        sync: false
-      - key: RENDER_EXTERNAL_URL
-        value: https://inkwell-ws.onrender.com
