@@ -327,12 +327,43 @@ wss.on("connection", async (ws, req) => {
   });
 });
 
-// Save all docs on server shutdown
-process.on("SIGINT", async () => {
-  console.log("[persistence] Saving all docs before shutdown...");
+// Keep-alive: ping all connected WebSocket clients every 30 seconds
+// Prevents Render free tier from killing the process due to "inactivity"
+const PING_INTERVAL = 30_000;
+setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.ping();
+    }
+  });
+}, PING_INTERVAL);
+
+// Self-ping: hit own health endpoint to keep Render from spinning down
+const SELF_PING_INTERVAL = 5 * 60_000; // Every 5 minutes
+setInterval(() => {
+  const url = process.env.RENDER_EXTERNAL_URL
+    ? `${process.env.RENDER_EXTERNAL_URL}/health`
+    : `http://localhost:${PORT}/health`;
+  fetch(url).catch(() => {});
+  console.log("[keepalive] Self-ping sent");
+}, SELF_PING_INTERVAL);
+
+// Save all docs on server shutdown (handle both SIGINT and SIGTERM)
+async function gracefulShutdown(signal: string) {
+  console.log(`[${signal}] Saving all docs before shutdown...`);
   const saves = Array.from(rooms.entries()).map(([id, room]) => saveDoc(id, room.doc));
   await Promise.all(saves);
   process.exit(0);
+}
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+
+// Handle uncaught errors to prevent crashes
+process.on("uncaughtException", (err) => {
+  console.error("[error] Uncaught exception:", err.message);
+});
+process.on("unhandledRejection", (err) => {
+  console.error("[error] Unhandled rejection:", err);
 });
 
 httpServer.listen(PORT, () => {

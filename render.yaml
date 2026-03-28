@@ -38,3 +38,5 @@ services:
         sync: false
       - key: ALLOWED_ORIGINS
         sync: false
+      - key: RENDER_EXTERNAL_URL
+        value: https://inkwell-ws.onrender.com
