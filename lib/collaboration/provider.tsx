@@ -1,14 +1,12 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import * as Y from "yjs";
-import { WebsocketProvider } from "y-websocket";
+import { createContext, useContext, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 interface CollaborationContextValue {
-  ydoc: Y.Doc;
-  provider: WebsocketProvider | null;
-  isConnected: boolean;
+  broadcast: (event: string, payload: Record<string, unknown>) => void;
+  onBroadcast: (event: string, callback: (payload: Record<string, unknown>) => void) => () => void;
 }
 
 const CollaborationContext = createContext<CollaborationContextValue | null>(null);
@@ -27,56 +25,58 @@ interface CollaborationProviderProps {
 }
 
 export function CollaborationProvider({ docId, userName, userColor, children }: CollaborationProviderProps) {
-  const ydoc = useMemo(() => new Y.Doc(), []);
-  const [isConnected, setIsConnected] = useState(false);
-  const [wsProvider, setWsProvider] = useState<WebsocketProvider | null>(null);
+  const supabase = createClient();
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const listenersRef = useRef<Map<string, Set<(payload: Record<string, unknown>) => void>>>(new Map());
 
   useEffect(() => {
-    const wsUrl = process.env.NEXT_PUBLIC_YJS_WS_URL;
-    if (!wsUrl) {
-      console.error("NEXT_PUBLIC_YJS_WS_URL environment variable is required");
-      return;
-    }
-
-    // Get auth token and connect with it
-    const supabase = createClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const token = session?.access_token || "";
-
-      // Room name is just the docId — used for persistence lookup
-      // Token passed via params option — appended as query string by y-websocket
-      const provider = new WebsocketProvider(wsUrl, docId, ydoc, {
-        params: { token },
-      });
-
-      provider.awareness.setLocalStateField("user", {
-        name: userName,
-        color: userColor,
-      });
-
-      provider.on("status", ({ status }: { status: string }) => {
-        setIsConnected(status === "connected");
-      });
-
-      setWsProvider(provider);
+    const ch = supabase.channel(`doc:${docId}`, {
+      config: { presence: { key: userName } },
     });
 
-    return () => {
-      // Cleanup on unmount
-    };
-  }, [docId, ydoc, userName, userColor]);
-
-  // Cleanup provider on unmount or change
-  useEffect(() => {
-    return () => {
-      if (wsProvider) {
-        wsProvider.destroy();
+    ch.on("broadcast", { event: "*" }, ({ event, payload }) => {
+      const listeners = listenersRef.current.get(event);
+      if (listeners) {
+        listeners.forEach((cb) => cb(payload as Record<string, unknown>));
       }
+    });
+
+    ch.subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        ch.track({ name: userName, color: userColor });
+      }
+    });
+
+    channelRef.current = ch;
+
+    return () => {
+      ch.unsubscribe();
+      channelRef.current = null;
     };
-  }, [wsProvider]);
+  }, [docId, userName, userColor, supabase]);
+
+  const broadcast = useCallback((event: string, payload: Record<string, unknown>) => {
+    channelRef.current?.send({ type: "broadcast", event, payload });
+  }, []);
+
+  const onBroadcast = useCallback((event: string, callback: (payload: Record<string, unknown>) => void) => {
+    if (!listenersRef.current.has(event)) {
+      listenersRef.current.set(event, new Set());
+    }
+    listenersRef.current.get(event)!.add(callback);
+
+    return () => {
+      listenersRef.current.get(event)?.delete(callback);
+    };
+  }, []);
+
+  const value: CollaborationContextValue = {
+    broadcast,
+    onBroadcast,
+  };
 
   return (
-    <CollaborationContext.Provider value={{ ydoc, provider: wsProvider, isConnected }}>
+    <CollaborationContext.Provider value={value}>
       {children}
     </CollaborationContext.Provider>
   );
